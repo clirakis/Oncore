@@ -25,8 +25,7 @@ TARGET = Oncore
 #
 EXT_CFLAGS =  -g 
 INCLUDE =  -I$(HOME)/common/libNMEA -I$(DRIVE)/common/utility \
-	-I$(HOME)/common/iolib \
-	-I$(ROOT_INC) -I../lib
+	-I$(HOME)/common/iolib -I../lib
 
 LIBS    =   -L../lib -lOncore $(ROOT_LIBS) -lRHTTP -L $(HOME)/lib_Linux \
 	-lNMEA -lio -lutility -lproj
