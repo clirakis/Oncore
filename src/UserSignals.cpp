@@ -9,7 +9,6 @@
  * Restrictions/Limitations :
  *
  * Change Descriptions :
- * 17-Feb-24 Fixed error in strncat
  *
  * Classification : Unclassified
  *
@@ -138,8 +137,8 @@ void Terminate (int sig)
     }
 
     // User termination here
-    GPS *p = GPS::GetThis();
-    delete p;
+    GPS *ptr = GPS::GetThis();
+    delete ptr;
 
     delete logger;
 
@@ -180,7 +179,9 @@ void UserSignal(int sig)
     case SIGUSR1:   // 10
     case SIGUSR2:   // 12
 	logger->Log("# SIGUSR: %d\n", sig);
-	GPS::GetThis()->Stop();
+	// User code here. 
+	GPS *ptr = GPS::GetThis();
+	ptr->Stop();
 	break;
     }
 }
