@@ -34,6 +34,7 @@ class SharedMem2;
 class GGA;
 class Geodetic;
 class Point;
+class Oncore_Display;
 
 /// Motorola Oncore GPS class
 class GPS : public CObject, Oncore
@@ -116,15 +117,13 @@ private:
      */
     Geodetic*     fGeodetic;
 
-    double fLatitude;      /*! Current Latitude  */
-    double fLongitude;     /*! Current Longitude */
-    //double fAltitude;      /*! Current Altitude  */
-    bool   fReset;         /*! Reset requested.   */
-    //double fGeoLatitude;   /*! Geodetic Latitude if needed for projections. */
-    //double fGeoLongitude;  /*! Geodetic Longitude if needed for projections.*/
-    bool   fDisplay;       /*! Turn curses display on. */
-    bool   fLogging;       /*! Turn logging on. */
+    double        fLatitude;      /*! Current Latitude  Degrees */
+    double        fLongitude;     /*! Current Longitude Degrees */
+    bool          fReset;         /*! Reset requested.   */
+    bool          fDisplay;       /*! Turn curses display on. */
+    bool          fLogging;       /*! Turn logging on. */
 
+    Oncore_Display *fPDisp;
     /**
      * Shared memory for position data. GPGGA
      * This is the outbound data. 

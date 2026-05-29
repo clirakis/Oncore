@@ -30,15 +30,18 @@ INCLUDE =  -I$(HOME)/common/libNMEA -I$(DRIVE)/common/utility \
 	-I../lib -I/usr/include/hdf5/serial
 
 LIBS    =   -L../lib -lOncore -L$(HOME)/lib_Linux \
-	-lNMEA -lio -lutility -lNavBasic -lproj -lhdf5_cpp -lhdf5
+	-lNMEA -lio -lutility -lNavBasic -lcurses -lproj -lhdf5_cpp -lhdf5
 LIBS   += -L$(HDF5LIB) -lconfig++
 
 # Rules to make the object files depend on the sources.
 SRC     = 
-SRCCPP  = main.cpp GPS.cpp Average.cpp ProcessTime.cpp UserSignals.cpp
+SRCCPP  = main.cpp GPS.cpp Average.cpp ProcessTime.cpp UserSignals.cpp \
+	OncoreDisp.cpp
+
 SRCS    = $(SRC) $(SRCCPP)
 
-HEADERS = GPS.hh Average.hh ProcessTime.hh UserSignals.hh
+HEADERS = GPS.hh Average.hh ProcessTime.hh UserSignals.hh \
+	OncoreDisp.hh
 
 # When we build all, what do we build?
 all:      $(TARGET)

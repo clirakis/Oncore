@@ -41,6 +41,7 @@ using namespace libconfig;
 #include "SharedMem2.hh"
 #include "NMEA_GPS.hh"
 #include "Geodetic.hh"
+#include "OncoreDisp.hh"
 
 const  char LF = 0x0A;
 const  char CR = 0x0D;
@@ -54,6 +55,10 @@ GPS* GPS::fGPS;
 
 static char kConfigFileName[] = "Oncore.cfg";
 static const uint32_t kNVar = 18;
+/**
+ * thread control for the display if selected. 
+ */
+static pthread_t d_thread;
 
 
 /**
@@ -91,6 +96,7 @@ GPS::GPS (void) : CObject(), Oncore()
     fGeodetic  = NULL;
     fGeoCenter = NULL;
     f5Logger   = NULL;
+    fPDisp     = NULL;
     fSerialPortName = string("/dev/ttyUSB0");  // A default. 
 
     if(!ReadConfiguration())
@@ -145,6 +151,22 @@ GPS::GPS (void) : CObject(), Oncore()
 	fn = new FileName("Oncore", "h5", One_Day);
 	OpenLogFile();
     }
+    if(fDisplay)
+    {
+	/* If the user has requested the display feature, start it now. */
+	/* create the display. */
+	fPDisp = new Oncore_Display();
+	if( pthread_create(&d_thread, NULL, DisplayThread, NULL) == 0)
+	{
+	    plogger->Log("# Display Thread successfully created.\n");
+	}
+	else
+	{
+	    SET_DEBUG_STACK;
+	    /* It is not the end of the world if this fails. */
+	    plogger->Log("# Dispaly Thread failed.\n");
+	}
+    }
 
     plogger->LogTime("Oncore initalization complete.\n");
     SET_DEBUG_STACK;
@@ -175,6 +197,11 @@ GPS::~GPS (void)
     SET_DEBUG_STACK;
     CLogger *pLog = CLogger::GetThis();
     pLog->LogTime("# Oncore Clean up.\n");
+
+    // Kill the display thread.
+    fPDisp->Stop();
+    delete fPDisp;
+    fPDisp = NULL;
 
     // Do some other stuff as well. 
     if(!WriteConfiguration())
@@ -410,6 +437,7 @@ void GPS::LogData(void)
 {
     SET_DEBUG_STACK;
     CLogger*        plogger = CLogger::GetThis();
+    Oncore_Display* pDisp   = Oncore_Display::GetThis();
     unsigned char*  command;
     time_t          epoch;
     double          SDay;
@@ -482,8 +510,8 @@ void GPS::LogData(void)
 
 		/* Position data **************************** */
 
-		fLatitude  = pPS->Latitude();   //*TMath::RadToDeg();
-		fLongitude = pPS->Longitude();  //*TMath::RadToDeg();
+		fLatitude  = pPS->Latitude();  // In Degrees
+		fLongitude = pPS->Longitude(); //In Degrees
 
 		// Make the forward projection. 
 		XY = fGeodetic->ToXY(fLongitude, fLatitude, 0.0);
@@ -495,8 +523,8 @@ void GPS::LogData(void)
 		{
 		    // Populate GGA message structure. 
 		    fGGA->SetPCTime(tstime);
-		    fGGA->SetLatitude(fLatitude*M_PI/180.0);
-		    fGGA->SetLongitude(fLongitude*M_PI/180.0);
+		    fGGA->SetLatitude(fLatitude);
+		    fGGA->SetLongitude(fLongitude);
 		    fGGA->SetTime(fixtime);   
 		    fGGA->SetUTC(GetPS()->GetUTC());
 		    fGGA->SetMilliseconds( milli); 
@@ -522,8 +550,8 @@ void GPS::LogData(void)
 		{
 		    // Write to HDF5 file. 
 		    f5Logger->FillInternalVector((double)fixtime+milli, 0);
-		    f5Logger->FillInternalVector(fLatitude*RadToDeg, 1);
-		    f5Logger->FillInternalVector(fLongitude*RadToDeg, 2);
+		    f5Logger->FillInternalVector(fLatitude, 1);
+		    f5Logger->FillInternalVector(fLongitude, 2);
 		    f5Logger->FillInternalVector(pPS->Altitude(), 3);
 		    f5Logger->FillInternalVector(pPS->NSAT(), 4);
 		    f5Logger->FillInternalVector(pPS->DOP(), 5);
@@ -565,6 +593,11 @@ void GPS::LogData(void)
 		    count = 0;
 		}
 #endif
+		if(pDisp)
+		{
+		    // A display is available. 
+		    pDisp->Update(pPS, raim);
+		}
 	    }
 	}
     } 
