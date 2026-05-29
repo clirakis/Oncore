@@ -14,9 +14,10 @@
  *
  *            Took out simple buffer and used utility Buffered. 
  *            This allows me to drain the information off the buffer
- *            with conversion utilties. This is in the Oncore Library. 
+ *            with conversion utilties. This is in the Oncore Library.
  *
- * Classification : Unclassified
+ * 28-May-26  Move all the logging in here, Use HDF5 logging format. 
+ *            use libconfig++ for configuration 
  *
  * References :
  * https://synergy-gps.com/wp-content/uploads/2018/11/ut-engg-notes.pdf
@@ -28,6 +29,11 @@
 using namespace std;
 #include <string>
 #include <cmath>
+#include <libconfig.h++>
+using namespace libconfig;
+// Proj 8 include
+#include <proj.h>
+
 
 // Local Includes.
 #include "debug.h"
@@ -35,7 +41,6 @@ using namespace std;
 #include "GPS.hh"
 #include "UserSignals.hh"
 #include "ProcessTime.hh"
-#include "User.hh"
 #include "SharedMem2.hh"
 #include "NMEA_GPS.hh"
 
@@ -48,6 +53,10 @@ GPS* GPS::fGPS;
  * The USER program does logging and provides HTML support. 
  */
 #define USE_USER 1
+
+static char kConfigFileName[] = "Oncore.cfg";
+static const uint32_t kNVar = 18;
+
 
 /**
  ******************************************************************
@@ -69,39 +78,49 @@ GPS* GPS::fGPS;
  *
  *******************************************************************
  */
-GPS::GPS (const char *SerialPortName) : Oncore(), SerialIO(SerialPortName, 
-							   B9600, 
-							   SerialIO::NONE,  
-							   SerialIO::ModeRaw, 
-							   2, 2)
+GPS::GPS (void) : CObject(), Oncore()
 {
     SET_DEBUG_STACK;
     char msg[128];
+    char temp[64];
     CLogger* plogger = CLogger::GetThis();
 
     SetName("Oncore");
     SetError(); // No error.
+    PJ_COORD c, c_out;
 
-    fGPS  = this;
-    fUser = NULL;
-    fRun  = true;
+    fGPS    = this;
+    fRun    = true;
+    fSerial = NULL;
 
-    if (SerialIO::CheckError())
+
+    if(!ReadConfiguration())
     {
-	sprintf(msg, "Error opening serial port: %s\n", SerialPortName);
+	SetError(ECONFIG_READ_FAIL,__LINE__);
+	return;
+    }
+
+
+    fSerial = new SerialIO(fSerialPortName.c_str(), 
+			   B9600, 
+			   SerialIO::NONE,  
+			   SerialIO::ModeRaw, 
+			   2, 2);
+
+    if (fSerial->CheckError())
+    {
+	sprintf(msg, "Error opening serial port: %s\n", 
+		fSerialPortName.c_str());
 	plogger->LogError(__FILE__,__LINE__,'F',msg);
 	SetError(SerialIO::BadOpen);
     }
     else
     {
-	plogger->LogTime("Serial port: %s open.\n", SerialPortName);
+	plogger->LogTime("Serial port: %s open.\n", fSerialPortName.c_str());
     }
 
     fProcessTime = new ProcessTime(plogger->GetVerbose());
 
-#if USE_USER==1
-    fUser = new User();
-#endif
 
     fGGA = NULL;
     // 28-Apr-24 CBL, make shared memory to hold 'GGA' data. 
@@ -121,7 +140,30 @@ GPS::GPS (const char *SerialPortName) : Oncore(), SerialIO(SerialPortName,
 	plogger->Log("# GGA SM successfully created.\n");
 	fGGA = new GGA();
     }
-    
+
+    if (fLogging)
+    {
+	fn = new FileName("Oncore", "h5", One_Day);
+	OpenLogFile();
+    }
+
+    /* Setup the projection. */
+
+    // Calculate zone
+    uint32_t zone = Zone(fGeoLongitude);
+    sprintf(temp, "EPSG:326%2.2d", zone);
+    CLogger::GetThis()->Log("# Creating projection from WGS84 to %s\n", temp);
+
+    fP =  proj_create_crs_to_crs(PJ_DEFAULT_CTX,
+				 "EPSG:4326",  // WGS84
+				 temp, // UTM 
+				 NULL);
+    // Get the XY of the center in the projection 
+    c = proj_coord(fGeoLongitude, fGeoLatitude, 0.0, 0.0);
+    c_out = proj_trans(fP, PJ_FWD, c);
+    fX0 = c_out.xy.x;
+    fY0 = c_out.xy.y;
+
 
     plogger->LogTime("Oncore initalization complete.\n");
     SET_DEBUG_STACK;
@@ -150,13 +192,143 @@ GPS::GPS (const char *SerialPortName) : Oncore(), SerialIO(SerialPortName,
 GPS::~GPS (void)
 {
     SET_DEBUG_STACK;
+    CLogger *pLog = CLogger::GetThis();
+    // Do some other stuff as well. 
+    if(!WriteConfiguration())
+    {
+	SetError(ECONFIG_WRITE_FAIL,__LINE__);
+	pLog->LogError(__FILE__,__LINE__, 'W', 
+		       "Failed to write config file.\n");
+    }
+
+    /* Close serial port */
+    delete fSerial;
+
+    /* Shut down logging. */
+    pLog->LogTime("stop logging\n");
+    delete f5Logger;
+    f5Logger = NULL;
+
     delete fProcessTime;
-    delete fUser;
     delete pSM_PositionData;
     delete fGGA;
+    proj_destroy(fP);
 
+    pLog->LogTime(" Oncore closed.\n");
 }
+/**
+ ******************************************************************
+ *
+ * Function Name : OpenLogFile
+ *
+ * Description : Open and manage the HDF5 log file
+ *
+ * Inputs : none
+ *
+ * Returns : NONE
+ *
+ * Error Conditions : NONE
+ * 
+ * Unit Tested on:  
+ *
+ * Unit Tested by: CBL
+ *
+ *
+ *******************************************************************
+ */
+bool GPS::OpenLogFile(void)
+{
+    SET_DEBUG_STACK;
+    const char *Names = "Time:Lat:Lon:Z:NSV:DOP:TDOP:SPEED:HEAD:TS:DT:SDAY:IDAY:EVCount:X:Y:DX:DY";
+    /*
+     *
+     *  0) Time - Seconds since unix epoch from GGA message
+     *  1) Lat  - degrees
+     *  2) Lon  - degrees
+     *  3) Z    - meters
+     *  4) NSV  - Number of satelites in view
+     *  5) DOP  - ASSUME HDOP
+     *  6) TDOP - Time DOP
+     *  7) SPEED - speed (units?)
+     *  8) HEAD - Not sure if this is true or magnetic
+     *  9) TS   - Time Solution
+     * 10) DT 
+     * 11) SDAY
+     * 12) IDAY
+     * 13) EVCount - event count
+     * 14) X
+     * 15  Y
+     * 16) DX
+     * 17) DY
+     */
+    CLogger *pLogger  = CLogger::GetThis();
+    /* Give me a file name.  */
+    const char* name  = fn->GetUniqueName();
+    fn->NewUpdateTime();
+    SET_DEBUG_STACK;
 
+    f5Logger = new H5Logger(name,"Oncore GPS Dataset", kNVar, false);
+    if (f5Logger->CheckError())
+    {
+	pLogger->Log("# Failed to open H5 log file: %s\n", name);
+	delete f5Logger;
+	f5Logger = NULL;
+	return false;
+    }
+    f5Logger->WriteDataTags(Names);
+
+    /* Log that this was done in the local text log file. */
+    time_t now;
+    char   msg[64];
+    SET_DEBUG_STACK;
+    time(&now);
+    strftime (msg, sizeof(msg), "%m-%d-%y %H:%M:%S", gmtime(&now));
+    pLogger->Log("# changed file name %s at %s\n", name, msg);
+
+    return true;
+}
+/**
+ ******************************************************************
+ *
+ * Function Name : UpdateFileName
+ *
+ * Description : Flush and close current log file, update the name, 
+ *               and reopen.
+ *
+ * Inputs : NONE
+ *
+ * Returns : NONE
+ *
+ * Error Conditions : NONE
+ * 
+ * Unit Tested on: 
+ *
+ * Unit Tested by: CBL
+ *
+ *
+ *******************************************************************
+ */
+void GPS::UpdateFileName(void)
+{
+    SET_DEBUG_STACK;
+    /*
+     * flush and close existing file
+     * get a new unique filename
+     * reset the timer
+     * and go!
+     *
+     * Check to see that logging is enabled. 
+     */
+    if(f5Logger)
+    {
+	// This will close and flush the existing logfile. 
+	delete f5Logger;
+	f5Logger = NULL;
+	// Now reopen
+	OpenLogFile();
+    }
+    SET_DEBUG_STACK;
+}
 /**
  ******************************************************************
  *
@@ -194,7 +366,7 @@ bool GPS::ReadByByte(void)
 
     do
     {
-	if(Read(&val))
+	if(fSerial->Read(&val))
 	{
 	    BigCount = 0;   // Reset timeout on read. 
 
@@ -232,10 +404,10 @@ bool GPS::ReadByByte(void)
 /**
  ******************************************************************
  *
- * Function Name : Update
+ * Function Name : LogData
  *
  * Description : Receive and decode the data from the GPS
- * receiver. 
+ * receiver. MAIN LOOP
  *
  * Inputs : NONE
  *
@@ -250,22 +422,25 @@ bool GPS::ReadByByte(void)
  *
  *******************************************************************
  */
-void GPS::Update(void)
+void GPS::LogData(void)
 {
     SET_DEBUG_STACK;
     CLogger*        plogger = CLogger::GetThis();
     unsigned char*  command;
-#if 0
-    unsigned char   commanddata[4];
-    uint32_t        count = 0;
-    PositionStatus *pPS;
-#endif
-    unsigned char  *data;
+    time_t          epoch;
+    double          SDay;
+    uint32_t        Day;
+    struct tm       *tm_val;
+    PositionStatus  *pPS = GetPS();
+    const RAIM*     raim = GetRAIM();
+    unsigned char   *data;
     int             n,m;
     struct timespec tstime;
     time_t          fixtime;
-    float           milli;
-
+    double          dt, milli, pcmilli;
+    uint32_t        count = 0;
+    PJ_COORD        c, c_out;
+    double          dX, dY;
 
     // Startup, send RAIM setup message.
     GetRAIM()->MessageRate(15); // every 15 seconds
@@ -275,7 +450,7 @@ void GPS::Update(void)
     data = GetRAIM()->Message(false);
     command = MakeCommand("En", data, 15);
     n = CommandSize();
-    m = Write(command, n);
+    m = fSerial->Write(command, n);
     if (n != m)
     {
 	plogger->LogTime("# ERROR writing RAIM command.\n");
@@ -286,6 +461,15 @@ void GPS::Update(void)
     // Loop while program is enabled. 
     while (fRun) 
     {
+	if(fLogging)
+	{
+	    /* Check to see if the logging interval has rolled over. */
+	    if (fn->ChangeNames())
+	    {
+		UpdateFileName();
+	    }
+	}
+
 	if (ReadByByte())
 	{
 	    /*
@@ -293,27 +477,47 @@ void GPS::Update(void)
 	     *  parse what is in the buffer. 
 	     */
 	    Parse();
-
 	    if (TimeValid())
 	    {
 		if (plogger->GetVerbose()>0)
 		{
 		    plogger->LogTime("Time Processed.\n");
 		}
+		/* Time crap */
+		tstime  = PCTime();
+		pcmilli = 1.0e-9 * (double) tstime.tv_nsec + (double) tstime.tv_sec;
+		fixtime = GetPS()->Time().tv_sec;
+		milli   = GetPS()->Time().tv_nsec;
+		milli   = milli * 1.0e-9;
+
+		dt = (fixtime+milli) - pcmilli;
+		epoch  = pPS->Time().tv_sec; 
+		tm_val = localtime(&epoch);
+		Day    = tm_val->tm_yday;
+		SDay   = (tm_val->tm_hour + 60.0 * tm_val->tm_min)*60.0 
+		    + tm_val->tm_sec;
+
+		/* Position data **************************** */
+
+		fLatitude  = pPS->Latitude();   //*TMath::RadToDeg();
+		fLongitude = pPS->Longitude();  //*TMath::RadToDeg();
+
+		// Make the forward projection. 
+		c = proj_coord(fLongitude, fLatitude, 0.0, 0.0); 
+		c_out = proj_trans(fP, PJ_FWD, c);
+		dX = c_out.xy.x - fX0;
+		dY = c_out.xy.y - fY0;
+
+
 		/* 
 		 * 28-Apr-24 CBL, new GGA message. 
 		 */
-
 		if (fGGA && pSM_PositionData)
 		{
 		    // Populate GGA message structure. 
-		    tstime = PCTime();
 		    fGGA->SetPCTime(tstime);
-		    fGGA->SetLatitude(GetPS()->Latitude()*M_PI/180.0);
-		    fGGA->SetLongitude(GetPS()->Longitude()*M_PI/180.0);
-		    fixtime = GetPS()->Time().tv_sec;
-		    milli   = GetPS()->Time().tv_nsec;
-		    milli   = milli * 1.0e-9;
+		    fGGA->SetLatitude(fLatitude*M_PI/180.0);
+		    fGGA->SetLongitude(fLongitude*M_PI/180.0);
 		    fGGA->SetTime(fixtime);   
 		    fGGA->SetUTC(GetPS()->GetUTC());
 		    fGGA->SetMilliseconds( milli); 
@@ -334,13 +538,32 @@ void GPS::Update(void)
 		 */
 		fProcessTime->Update(GPSTime(), GetDelta());
 
-		// Do any user stuff here. 
-		if (fUser)
-		{
-		    fUser->Update(GetDelta());
-		}
 		TimeProcessed();  // reset the PositionStatus class
+		if (fLogging)
+		{
+		    // Write to HDF5 file. 
+		    f5Logger->FillInternalVector((double)fixtime+milli, 0);
+		    f5Logger->FillInternalVector(fLatitude*RadToDeg, 1);
+		    f5Logger->FillInternalVector(fLongitude*RadToDeg, 2);
+		    f5Logger->FillInternalVector(pPS->Altitude(), 3);
+		    f5Logger->FillInternalVector(pPS->NSAT(), 4);
+		    f5Logger->FillInternalVector(pPS->DOP(), 5);
+		    f5Logger->FillInternalVector(pPS->TDOP(), 6);
+		    f5Logger->FillInternalVector(pPS->Velocity(), 7);
+		    f5Logger->FillInternalVector(pPS->Heading(), 8);
+		    f5Logger->FillInternalVector(raim->TimeSolution(), 9);
+		    f5Logger->FillInternalVector(pPS->GetDelta(),10);
+		    f5Logger->FillInternalVector(SDay,11);
+		    f5Logger->FillInternalVector(Day, 12);
+		    f5Logger->FillInternalVector(count, 13);
+		    f5Logger->FillInternalVector(c_out.xy.x,14);
+		    f5Logger->FillInternalVector(c_out.xy.y, 15);
+		    f5Logger->FillInternalVector(dX, 16);
+		    f5Logger->FillInternalVector(dY, 17);
 
+		    f5Logger->Fill();
+		}
+		count++;
 #if 0
 		// Setup to get, not sure what....
 		count++;
@@ -367,5 +590,178 @@ void GPS::Update(void)
 	}
     } 
     SET_DEBUG_STACK;
+}
+
+/**
+ ******************************************************************
+ *
+ * Function Name : ReadConfiguration
+ *
+ * Description : Open read the configuration file. 
+ *
+ * Inputs : none
+ *
+ * Returns : NONE
+ *
+ * Error Conditions : NONE
+ * 
+ * Unit Tested on:  
+ *
+ * Unit Tested by: CBL
+ *
+ *
+ *******************************************************************
+ */
+bool GPS::ReadConfiguration(void)
+{
+    SET_DEBUG_STACK;
+    CLogger *Logger = CLogger::GetThis();
+    ClearError(__LINE__);
+    Config *pCFG = new Config();
+
+    /*
+     * Open the configuragtion file. 
+     */
+    try{
+	pCFG->readFile(kConfigFileName);
+    }
+    catch( const FileIOException &fioex)
+    {
+	Logger->LogError(__FILE__,__LINE__,'F',
+			 "I/O error while reading configuration file.\n");
+	return false;
+    }
+    catch (const ParseException &pex)
+    {
+	Logger->Log("# Parse error at: %s : %d - %s\n",
+		    pex.getFile(), pex.getLine(), pex.getError());
+	return false;
+    }
+
+
+    /*
+     * Start at the top. 
+     */
+    const Setting& root = pCFG->getRoot();
+
+    // Output a list of all books in the inventory.
+    try
+    {
+	/*
+	 * index into group GPS
+	 */
+	const Setting &GPS = root["GPS"];
+	string Port;
+	int    Debug;
+
+	GPS.lookupValue("Port",      fSerialPortName);
+	GPS.lookupValue("Latitude",  fLatitude);
+	GPS.lookupValue("Longitude", fLongitude);
+	GPS.lookupValue("Altitude",  fAltitude);
+	GPS.lookupValue("Reset",     fReset);
+	GPS.lookupValue("Debug",     Debug);
+	GPS.lookupValue("Display",   fDisplay);
+	GPS.lookupValue("Logging",   fLogging);
+
+	SetDebug(Debug);
+
+	if (fReset)
+	{
+	    Logger->Log("# Reset is called for.\n");
+	}
+    }
+    catch(const SettingNotFoundException &nfex)
+    {
+	// Ignore.
+    }
+
+    // Output a list of all movies in the inventory.
+    try
+    {
+	/*
+	 * index into group Geodetic
+	 */
+	const Setting &Geodetic = root["Geodetic"];
+
+	Geodetic.lookupValue("Latitude",  fGeoLatitude);
+	Geodetic.lookupValue("Longitude", fGeoLongitude);
+
+    }
+    catch(const SettingNotFoundException &nfex)
+    {
+	// Ignore.
+    }
+    delete pCFG;
+    pCFG = 0;
+    SET_DEBUG_STACK;
+    return true;
+}
+
+/**
+ ******************************************************************
+ *
+ * Function Name : WriteConfigurationFile
+ *
+ * Description : Write out final configuration
+ *
+ * Inputs : none
+ *
+ * Returns : NONE
+ *
+ * Error Conditions : NONE
+ * 
+ * Unit Tested on:  
+ *
+ * Unit Tested by: CBL
+ *
+ *
+ *******************************************************************
+ */
+bool GPS::WriteConfiguration(void)
+{
+    SET_DEBUG_STACK;
+    CLogger *Logger = CLogger::GetThis();
+    ClearError(__LINE__);
+    Config *pCFG = new Config();
+
+    Setting &root = pCFG->getRoot();
+
+    // Add some settings to the configuration.
+    Setting &GPS = root.add("GPS", Setting::TypeGroup);
+    Setting &Geodetic = root.add("Geodetic", Setting::TypeGroup);
+
+    GPS.add("Port",      Setting::TypeString)  = fSerialPortName;
+    GPS.add("Latitude",  Setting::TypeFloat)   = fLatitude;
+    GPS.add("Longitude", Setting::TypeFloat)   = fLongitude;
+    GPS.add("Altitude",  Setting::TypeFloat)   = fAltitude;
+
+    // Reset both the request to reset and the debug parameter. 
+    GPS.add("Reset",     Setting::TypeBoolean) = false;
+    GPS.add("Debug",     Setting::TypeInt)     = 0;
+    GPS.add("Display",   Setting::TypeBoolean) = fDisplay;
+    GPS.add("Logging",   Setting::TypeBoolean) = fLogging;
+
+    // These are somewhat residual. 
+    Geodetic.add("Latitude",  Setting::TypeFloat) = fGeoLatitude;
+    Geodetic.add("Longitude", Setting::TypeFloat) = fGeoLongitude;
+
+    // Write out the new configuration.
+    try
+    {
+	pCFG->writeFile(kConfigFileName);
+	Logger->LogTime(" New configuration successfully written to: %s\n",
+			kConfigFileName);
+
+    }
+    catch(const FileIOException &fioex)
+    {
+	Logger->Log("# I/O error while writing file: %s \n",
+		    kConfigFileName);
+	delete pCFG;
+	return(false);
+    }
+    delete pCFG;
+    SET_DEBUG_STACK;
+    return true;
 }
 

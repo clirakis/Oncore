@@ -14,6 +14,7 @@
 #                               to put data in shared memory for
 #                               general consumers. libNMEA.so
 #       28-May-26       CBL     changed locations for a single archive
+#                               Removed root association
 #
 ######################################################################
 # Machine specific stuff
@@ -25,17 +26,18 @@ TARGET = Oncore
 #
 EXT_CFLAGS =  -g 
 INCLUDE =  -I$(HOME)/common/libNMEA -I$(DRIVE)/common/utility \
-	-I$(HOME)/common/iolib -I../lib
+	-I$(HOME)/common/iolib -I../lib -I/usr/include/hdf5/serial
 
-LIBS    =   -L../lib -lOncore $(ROOT_LIBS) -lRHTTP -L $(HOME)/lib_Linux \
-	-lNMEA -lio -lutility -lproj
+LIBS    =   -L../lib -lOncore -L$(HOME)/lib_Linux \
+	-lNMEA -lio -lutility -lproj -lhdf5_cpp -lhdf5
+LIBS   += -L$(HDF5LIB) -lconfig++
 
 # Rules to make the object files depend on the sources.
 SRC     = 
-SRCCPP  = main.cpp GPS.cpp Average.cpp ProcessTime.cpp User.cpp UserSignals.cpp
+SRCCPP  = main.cpp GPS.cpp Average.cpp ProcessTime.cpp UserSignals.cpp
 SRCS    = $(SRC) $(SRCCPP)
 
-HEADERS = GPS.hh Average.hh ProcessTime.hh User.hh UserSignals.hh
+HEADERS = GPS.hh Average.hh ProcessTime.hh UserSignals.hh
 
 # When we build all, what do we build?
 all:      $(TARGET)

@@ -44,9 +44,6 @@ static unsigned int VerboseLevel = 0;
 /** Pointer to the logger structure. */
 static CLogger   *logger;
 
-/* Specify a default serial port name. */
-static const char*   SerialPortName = "/dev/ttyUSB0";
-
 /* Oncore pointer to run class */
 static GPS* pOncore;
 
@@ -108,16 +105,13 @@ ProcessCommandLineArgs(int argc, char **argv)
     SET_DEBUG_STACK;
     do
     {
-        option = getopt( argc, argv, "hHp:v:");
+        option = getopt( argc, argv, "hHv:");
         switch(option)
 	{
 	case 'h':
 	case 'H':
 	    Help();
 	    Terminate(0);
-	    break;
-	case 'p':
-	    SerialPortName = strdup(optarg);
 	    break;
 	case 'v':
 	    VerboseLevel = atoi(optarg);
@@ -198,8 +192,8 @@ int main(int argc, char **argv)
     ProcessCommandLineArgs(argc, argv);
     if (Initialize())
     {
-	pOncore = new GPS(SerialPortName);
-	pOncore->Update();
+	pOncore = new GPS();
+	pOncore->LogData();
     }
     Terminate(0);
 }
