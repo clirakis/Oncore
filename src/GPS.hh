@@ -32,6 +32,8 @@ class ProcessTime;
 class User;
 class SharedMem2;
 class GGA;
+class Geodetic;
+class Point;
 
 /// Motorola Oncore GPS class
 class GPS : public CObject, Oncore
@@ -108,15 +110,18 @@ private:
     /*!
      * Projection details. 
      */
-    PJ     *fP;            /* Pointer to projection */
+    Point*        fGeoCenter;     /*! LL Geodetic center, degrees */
+    /*!
+     * pointer to geodetic projection if there is one. 
+     */
+    Geodetic*     fGeodetic;
 
-    double fLatitude;      /*! Starting Latitude  */
-    double fLongitude;     /*! Starting Longitude */
-    double fAltitude;      /*! Starting Altitude  */
+    double fLatitude;      /*! Current Latitude  */
+    double fLongitude;     /*! Current Longitude */
+    //double fAltitude;      /*! Current Altitude  */
     bool   fReset;         /*! Reset requested.   */
-    double fGeoLatitude;   /*! Geodetic Latitude if needed for projections. */
-    double fGeoLongitude;  /*! Geodetic Longitude if needed for projections.*/
-    double fX0, fY0;       /*! Geodetic center XY */
+    //double fGeoLatitude;   /*! Geodetic Latitude if needed for projections. */
+    //double fGeoLongitude;  /*! Geodetic Longitude if needed for projections.*/
     bool   fDisplay;       /*! Turn curses display on. */
     bool   fLogging;       /*! Turn logging on. */
 

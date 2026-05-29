@@ -31,9 +31,6 @@ using namespace std;
 #include <cmath>
 #include <libconfig.h++>
 using namespace libconfig;
-// Proj 8 include
-#include <proj.h>
-
 
 // Local Includes.
 #include "debug.h"
@@ -43,6 +40,7 @@ using namespace libconfig;
 #include "ProcessTime.hh"
 #include "SharedMem2.hh"
 #include "NMEA_GPS.hh"
+#include "Geodetic.hh"
 
 const  char LF = 0x0A;
 const  char CR = 0x0D;
@@ -82,12 +80,10 @@ GPS::GPS (void) : CObject(), Oncore()
 {
     SET_DEBUG_STACK;
     char msg[128];
-    char temp[64];
     CLogger* plogger = CLogger::GetThis();
 
     SetName("Oncore");
     SetError(); // No error.
-    PJ_COORD c, c_out;
 
     fGPS    = this;
     fRun    = true;
@@ -147,24 +143,6 @@ GPS::GPS (void) : CObject(), Oncore()
 	OpenLogFile();
     }
 
-    /* Setup the projection. */
-
-    // Calculate zone
-    uint32_t zone = Zone(fGeoLongitude);
-    sprintf(temp, "EPSG:326%2.2d", zone);
-    CLogger::GetThis()->Log("# Creating projection from WGS84 to %s\n", temp);
-
-    fP =  proj_create_crs_to_crs(PJ_DEFAULT_CTX,
-				 "EPSG:4326",  // WGS84
-				 temp, // UTM 
-				 NULL);
-    // Get the XY of the center in the projection 
-    c = proj_coord(fGeoLongitude, fGeoLatitude, 0.0, 0.0);
-    c_out = proj_trans(fP, PJ_FWD, c);
-    fX0 = c_out.xy.x;
-    fY0 = c_out.xy.y;
-
-
     plogger->LogTime("Oncore initalization complete.\n");
     SET_DEBUG_STACK;
 }
@@ -212,7 +190,8 @@ GPS::~GPS (void)
     delete fProcessTime;
     delete pSM_PositionData;
     delete fGGA;
-    proj_destroy(fP);
+    delete fGeoCenter;
+    delete fGeodetic;
 
     pLog->LogTime(" Oncore closed.\n");
 }
@@ -437,10 +416,9 @@ void GPS::LogData(void)
     int             n,m;
     struct timespec tstime;
     time_t          fixtime;
-    double          dt, milli, pcmilli;
+    double          milli;
     uint32_t        count = 0;
-    PJ_COORD        c, c_out;
-    double          dX, dY;
+    Point           XY;
 
     // Startup, send RAIM setup message.
     GetRAIM()->MessageRate(15); // every 15 seconds
@@ -484,13 +462,13 @@ void GPS::LogData(void)
 		    plogger->LogTime("Time Processed.\n");
 		}
 		/* Time crap */
-		tstime  = PCTime();
-		pcmilli = 1.0e-9 * (double) tstime.tv_nsec + (double) tstime.tv_sec;
+//		tstime  = PCTime();
+//		pcmilli = 1.0e-9 * (double) tstime.tv_nsec + (double) tstime.tv_sec;
 		fixtime = GetPS()->Time().tv_sec;
 		milli   = GetPS()->Time().tv_nsec;
 		milli   = milli * 1.0e-9;
 
-		dt = (fixtime+milli) - pcmilli;
+//		dt = (fixtime+milli) - pcmilli;
 		epoch  = pPS->Time().tv_sec; 
 		tm_val = localtime(&epoch);
 		Day    = tm_val->tm_yday;
@@ -503,11 +481,7 @@ void GPS::LogData(void)
 		fLongitude = pPS->Longitude();  //*TMath::RadToDeg();
 
 		// Make the forward projection. 
-		c = proj_coord(fLongitude, fLatitude, 0.0, 0.0); 
-		c_out = proj_trans(fP, PJ_FWD, c);
-		dX = c_out.xy.x - fX0;
-		dY = c_out.xy.y - fY0;
-
+		XY = fGeodetic->ToXY(fLongitude, fLatitude, 0.0);
 
 		/* 
 		 * 28-Apr-24 CBL, new GGA message. 
@@ -556,10 +530,10 @@ void GPS::LogData(void)
 		    f5Logger->FillInternalVector(SDay,11);
 		    f5Logger->FillInternalVector(Day, 12);
 		    f5Logger->FillInternalVector(count, 13);
-		    f5Logger->FillInternalVector(c_out.xy.x,14);
-		    f5Logger->FillInternalVector(c_out.xy.y, 15);
-		    f5Logger->FillInternalVector(dX, 16);
-		    f5Logger->FillInternalVector(dY, 17);
+		    f5Logger->FillInternalVector(XY.X(),14);
+		    f5Logger->FillInternalVector(XY.Y(), 15);
+		    f5Logger->FillInternalVector(XY.X()-fGeodetic->XY0().X(), 16);
+		    f5Logger->FillInternalVector(XY.Y() - fGeodetic->XY0().Y(), 17);
 
 		    f5Logger->Fill();
 		}
@@ -638,7 +612,6 @@ bool GPS::ReadConfiguration(void)
 	return false;
     }
 
-
     /*
      * Start at the top. 
      */
@@ -654,14 +627,11 @@ bool GPS::ReadConfiguration(void)
 	string Port;
 	int    Debug;
 
-	GPS.lookupValue("Port",      fSerialPortName);
-	GPS.lookupValue("Latitude",  fLatitude);
-	GPS.lookupValue("Longitude", fLongitude);
-	GPS.lookupValue("Altitude",  fAltitude);
-	GPS.lookupValue("Reset",     fReset);
-	GPS.lookupValue("Debug",     Debug);
-	GPS.lookupValue("Display",   fDisplay);
-	GPS.lookupValue("Logging",   fLogging);
+	GPS.lookupValue("Port",       fSerialPortName);
+	GPS.lookupValue("Reset",      fReset);
+	GPS.lookupValue("Debug",      Debug);
+	GPS.lookupValue("Display",    fDisplay);
+	GPS.lookupValue("Logging",    fLogging);
 
 	SetDebug(Debug);
 
@@ -678,14 +648,21 @@ bool GPS::ReadConfiguration(void)
     // Output a list of all movies in the inventory.
     try
     {
+	double Lat, Lon;
 	/*
 	 * index into group Geodetic
 	 */
-	const Setting &Geodetic = root["Geodetic"];
+	const Setting &GroupGeodetic = root["Geodetic"];
 
-	Geodetic.lookupValue("Latitude",  fGeoLatitude);
-	Geodetic.lookupValue("Longitude", fGeoLongitude);
-
+	GroupGeodetic.lookupValue("Latitude",  Lat);
+	GroupGeodetic.lookupValue("Longitude", Lon);
+	// Make sure that there is no fGeoCenter
+	delete fGeoCenter;
+	delete fGeodetic;
+	fGeoCenter = new Point( Lon, Lat);
+        fGeodetic  = new Geodetic(fGeoCenter->Y(), fGeoCenter->X());
+	Logger->Log("# Geodetic center set! %f %f %f %f\n", 
+		    Lat, Lon, fGeodetic->XY0().X(), fGeodetic->XY0().Y());
     }
     catch(const SettingNotFoundException &nfex)
     {
@@ -728,12 +705,9 @@ bool GPS::WriteConfiguration(void)
 
     // Add some settings to the configuration.
     Setting &GPS = root.add("GPS", Setting::TypeGroup);
-    Setting &Geodetic = root.add("Geodetic", Setting::TypeGroup);
+    Setting &GroupGeodetic = root.add("Geodetic", Setting::TypeGroup);
 
     GPS.add("Port",      Setting::TypeString)  = fSerialPortName;
-    GPS.add("Latitude",  Setting::TypeFloat)   = fLatitude;
-    GPS.add("Longitude", Setting::TypeFloat)   = fLongitude;
-    GPS.add("Altitude",  Setting::TypeFloat)   = fAltitude;
 
     // Reset both the request to reset and the debug parameter. 
     GPS.add("Reset",     Setting::TypeBoolean) = false;
@@ -742,8 +716,8 @@ bool GPS::WriteConfiguration(void)
     GPS.add("Logging",   Setting::TypeBoolean) = fLogging;
 
     // These are somewhat residual. 
-    Geodetic.add("Latitude",  Setting::TypeFloat) = fGeoLatitude;
-    Geodetic.add("Longitude", Setting::TypeFloat) = fGeoLongitude;
+    GroupGeodetic.add("Latitude0",  Setting::TypeFloat) = fGeodetic->CenterLat();
+    GroupGeodetic.add("Longitude0", Setting::TypeFloat) = fGeodetic->CenterLon();
 
     // Write out the new configuration.
     try

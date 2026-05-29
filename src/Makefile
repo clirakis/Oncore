@@ -26,10 +26,11 @@ TARGET = Oncore
 #
 EXT_CFLAGS =  -g 
 INCLUDE =  -I$(HOME)/common/libNMEA -I$(DRIVE)/common/utility \
-	-I$(HOME)/common/iolib -I../lib -I/usr/include/hdf5/serial
+	-I$(HOME)/common/iolib -I$(DRIVE)/common/libNavBasic \
+	-I../lib -I/usr/include/hdf5/serial
 
 LIBS    =   -L../lib -lOncore -L$(HOME)/lib_Linux \
-	-lNMEA -lio -lutility -lproj -lhdf5_cpp -lhdf5
+	-lNMEA -lio -lutility -lNavBasic -lproj -lhdf5_cpp -lhdf5
 LIBS   += -L$(HDF5LIB) -lconfig++
 
 # Rules to make the object files depend on the sources.
