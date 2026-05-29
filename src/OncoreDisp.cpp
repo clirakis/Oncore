@@ -523,11 +523,11 @@ void Oncore_Display::display_position(double lat, double lon, double alt,
     col = LEFT_AREA;
     
     wmove  (fVin, row, col);
-    wprintw(fVin, "%s", str_lat(lat, tmpstr));
+    wprintw(fVin, "%s", str_lat(lat*DegToRad, tmpstr));
     row++;
     
     wmove  (fVin, row, col);
-    wprintw(fVin, "%s", str_lon(lon, tmpstr));
+    wprintw(fVin, "%s", str_lon(lon*DegToRad, tmpstr));
     row++;
     
     wmove  (fVin, row, col);
