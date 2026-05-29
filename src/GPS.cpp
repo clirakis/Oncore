@@ -85,10 +85,13 @@ GPS::GPS (void) : CObject(), Oncore()
     SetName("Oncore");
     SetError(); // No error.
 
-    fGPS    = this;
-    fRun    = true;
-    fSerial = NULL;
-
+    fGPS       = this;
+    fRun       = true;
+    fSerial    = NULL;
+    fGeodetic  = NULL;
+    fGeoCenter = NULL;
+    f5Logger   = NULL;
+    fSerialPortName = string("/dev/ttyUSB0");  // A default. 
 
     if(!ReadConfiguration())
     {
@@ -171,6 +174,8 @@ GPS::~GPS (void)
 {
     SET_DEBUG_STACK;
     CLogger *pLog = CLogger::GetThis();
+    pLog->LogTime("# Oncore Clean up.\n");
+
     // Do some other stuff as well. 
     if(!WriteConfiguration())
     {
@@ -593,6 +598,8 @@ bool GPS::ReadConfiguration(void)
     ClearError(__LINE__);
     Config *pCFG = new Config();
 
+    Logger->Log("# Opening configuration file: %s\n", kConfigFileName);
+
     /*
      * Open the configuragtion file. 
      */
@@ -699,6 +706,8 @@ bool GPS::WriteConfiguration(void)
     SET_DEBUG_STACK;
     CLogger *Logger = CLogger::GetThis();
     ClearError(__LINE__);
+    double Lat = 41.3084;
+    double Lon = -71.2;
     Config *pCFG = new Config();
 
     Setting &root = pCFG->getRoot();
@@ -715,9 +724,14 @@ bool GPS::WriteConfiguration(void)
     GPS.add("Display",   Setting::TypeBoolean) = fDisplay;
     GPS.add("Logging",   Setting::TypeBoolean) = fLogging;
 
-    // These are somewhat residual. 
-    GroupGeodetic.add("Latitude0",  Setting::TypeFloat) = fGeodetic->CenterLat();
-    GroupGeodetic.add("Longitude0", Setting::TypeFloat) = fGeodetic->CenterLon();
+    // if falls through first time
+    if(fGeodetic)
+    {
+	Lat = fGeodetic->CenterLat();
+	Lon = fGeodetic->CenterLon();
+    }
+    GroupGeodetic.add("Latitude0",  Setting::TypeFloat) = Lat;
+    GroupGeodetic.add("Longitude0", Setting::TypeFloat) = Lon;
 
     // Write out the new configuration.
     try

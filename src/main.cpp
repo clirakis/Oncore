@@ -193,7 +193,10 @@ int main(int argc, char **argv)
     if (Initialize())
     {
 	pOncore = new GPS();
-	pOncore->LogData();
+	if(!pOncore->CheckError())
+	{
+	    pOncore->LogData();
+	}
     }
     Terminate(0);
 }

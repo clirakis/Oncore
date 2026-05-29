@@ -62,8 +62,8 @@ ProcessTime::ProcessTime(bool verbose)
 {
     SET_DEBUG_STACK;
     CLogger* logger = CLogger::GetThis();
-    fTimeSM   = 0;
-    fGPSDelta = 0;
+    fTimeSM   = NULL;
+    fGPSDelta = NULL;
     memset(&fOldTime, 0, sizeof(struct timespec));
     fError    = 0;
     fVerbose  = verbose;
