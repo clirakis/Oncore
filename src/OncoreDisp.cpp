@@ -79,9 +79,9 @@ static const char *pos_strings[] = {
              "       Latitude :                Mode:         ",
              "      Longitude :                 NSV:         ",
              "        Altitude:                 PRN:         ",
-             "     Time of Fix:                 DOP:         ",
-             "           Speed:                TDOP:         ",
-             "         Heading:              Status:         ",
+             "           Speed:                 DOP:         ",
+             "         Heading:                TDOP:         ",
+             "                               Status:         ",
              "                                               ",
 	     "                                               ",
              "                                               ",
@@ -157,8 +157,6 @@ Oncore_Display::Oncore_Display(void)
     WriteMsgToScreen("Start Display....");
     SET_DEBUG_STACK;
 }
-
-
 /**
  ******************************************************************
  *
@@ -287,8 +285,8 @@ void Oncore_Display::Update(const PositionStatus* pPS, const RAIM* pRaim )
     case POSITION_SCREEN:
 
 	display_position(pPS->Latitude(), pPS->Longitude(), 
-			 pPS->Altitude(), pPS->Time().tv_sec,
-			 pPS->Velocity(), pPS->Heading());
+			 pPS->Altitude(), pPS->Velocity(), pPS->Heading());
+	display_details(0, pPS->NSAT(), pPS->DOP(), pPS->TDOP(), 0);
 	display_time(pPS->Time().tv_sec, pPS->GetDelta());
 	break;
     }
@@ -352,9 +350,8 @@ void Oncore_Display::display_time(time_t gpstime, double delta)
  *
  *******************************************************************
  */
-void Oncore_Display::display_rp(unsigned char mode1, unsigned char nsvs, 
-			      unsigned char mode2, const unsigned char *sv_prn,
-			      float pdop, float hdop, float vdop, float tdop)
+void Oncore_Display::display_details(int mode, int NSV, double dop, double Tdop, int status)
+
 {
     SET_DEBUG_STACK;
     char sv[40], tmp[8];
@@ -363,80 +360,41 @@ void Oncore_Display::display_rp(unsigned char mode1, unsigned char nsvs,
     int col = RIGHT_AREA;
     int i;
     wmove  (fVin, row, col);
-    wprintw(fVin, "%c", mode1);
+    wprintw(fVin, "%d", mode);
     row++;
 
     wmove  (fVin, row, col);
-    wprintw(fVin, "%2d", nsvs);
+    wprintw(fVin, "%2d", NSV);
     row++;
 
+    /* PLACEHOLDER */
     memset(sv, 0, sizeof(sv));
-    sprintf(sv, "%2d ", sv_prn[0]);
-
+    sprintf(sv, "%2d ", 0);
+#if 0
     for (i=1;i<nsvs;i++)
     {
 	sprintf(tmp, "%2d ", sv_prn[i]);
 	strcat(sv, tmp);
     }
+#endif
     wmove  (fVin, row, col);
     wprintw(fVin, "%s", sv);
     row++;
 
     wmove  (fVin, row, col);
-    wprintw(fVin, "%8.2f", pdop);
+    wprintw(fVin, "%8.2f", dop);
     row++;
 
     wmove  (fVin, row, col);
-    wprintw(fVin, "%8.2f", hdop );
+    wprintw(fVin, "%8.2f", Tdop );
     row++;
 
     wmove  (fVin, row, col);
-    wprintw(fVin, "%8.2f", vdop);
+    wprintw(fVin, "%d", status);
     row++;
 
-    wmove  (fVin, row, col);
-    wprintw(fVin, "%8.2f", tdop);
-    row++;
     SET_DEBUG_STACK;
 }
-#if 0
-/**
- ******************************************************************
- *
- * Function Name : display_mode
- *
- * Description : NOT USED, need to update. 
- *
- * Inputs :
- *
- * Returns :
- *
- * Error Conditions :
- * 
- * Unit Tested on: 
- *
- * Unit Tested by: CBL
- *
- *
- *******************************************************************
- */
-void Oncore_Display::display_mode( unsigned char mode)
-{
-    const char *mode_str[] = {"Manual GPS", 
-			      "Manual GPD", 
-			      "Auto GPS  ",
-			      "Auto GPD  "
-    };
-    SET_DEBUG_STACK;
-    int row = STATUS_AREA+9;
-    int col = LEFT_AREA;
-
-    wmove  (fVin, row, col);
-    wprintw(fVin, "%s", mode_str[mode]);
-    row++;
-    SET_DEBUG_STACK;
-}
-#endif
 
 /**
  ******************************************************************
@@ -447,12 +405,6 @@ void Oncore_Display::display_mode( unsigned char mode)
  *      Display all the GGA data
  *
  * Inputs : 
- *     lat - latitude in radians
- *     lon - longitude in radians
- *     alt - altitude in meters
- *     geoid - distance from mean geoid in m
- *     time  - GPS week seconds
- *     fix -
  *
  * Returns :
  *
@@ -465,7 +417,7 @@ void Oncore_Display::display_mode( unsigned char mode)
  *
  *******************************************************************
  */
-void Oncore_Display::display_position(double lat, double lon, double alt, time_t time,
+void Oncore_Display::display_position(double lat, double lon, double alt,
 				      double speed, double heading)
 {
     SET_DEBUG_STACK;
@@ -485,11 +437,6 @@ void Oncore_Display::display_position(double lat, double lon, double alt, time_t
     
     wmove  (fVin, row, col);
     wprintw(fVin, "%6.2f", alt);
-    row++;
-
-    strftime(tmpstr, sizeof(tmpstr), "%F %H:%M:%S", localtime(&time));
-    wmove  (fVin, row, col);
-    wprintw(fVin, "%s", tmpstr);
     row++;
 
     wmove  (fVin, row, col);

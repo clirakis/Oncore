@@ -116,13 +116,10 @@ private:
     void display_message (const char *fmt, ...);
 
     /* Position screen stuff. */
-    void display_position(double lat, double lon, double alt, time_t time,
+    void display_position(double lat, double lon, double alt, 
 			  double speed, double heading);
 
-    void display_mode(unsigned char mode);
-    void display_rp(unsigned char manual_mode, unsigned char nsvs, 
-		    unsigned char ndim, const unsigned char *sv_prn,
-		    float pdop, float hdop, float vdop, float tdop);
+    void display_details(int mode, int NSV, double dop, double Tdop, int status);
     void display_time(time_t gpstime, double delta);
     
     /* Mainpulate command area. */
