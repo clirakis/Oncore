@@ -285,8 +285,8 @@ void Oncore_Display::Update(PositionStatus* pPS, RAIM* pRAIM, VisibleSatellites*
     case POSITION_SCREEN:
 
 	display_position(pPS);
-	//display_details(pVS,  pPS->DOP(), pPS->TDOP());
-	//display_time(pPS->Time().tv_sec, pPS->GetDelta());
+	display_details(pVS,  pPS->DOP(), pPS->TDOP());
+	display_time(pPS->Time().tv_sec, pPS->GetDelta());
 	break;
     }
 
@@ -427,11 +427,11 @@ void Oncore_Display::display_position(const PositionStatus* pPS)
     col = LEFT_AREA;
     
     wmove  (fVin, row, col);
-    //wprintw(fVin, "%s", str_lat(pPS->Latitude()*DegToRad, tmpstr));
+    wprintw(fVin, "%s", str_lat(pPS->Latitude()*DegToRad, tmpstr));
     row++;
     
     wmove  (fVin, row, col);
-    //wprintw(fVin, "%s", str_lon(pPS->Longitude()*DegToRad, tmpstr));
+    wprintw(fVin, "%s", str_lon(pPS->Longitude()*DegToRad, tmpstr));
     row++;
     
     wmove  (fVin, row, col);
