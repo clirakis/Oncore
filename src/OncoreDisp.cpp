@@ -721,8 +721,9 @@ void* DisplayThread(void *arg)
 	 * Check to see if the user has requested
 	 * special changes in the setup
 	 */
-	rv = pDisp->checkKeys();
-	if (rv>0)
+	//rv = pDisp->checkKeys();
+	rv = false;
+	if (rv)
 	{
 	    pDisp->WriteMsgToScreen("QUIT\0");
 	    pDisp->Stop();
