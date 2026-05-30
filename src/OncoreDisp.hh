@@ -49,6 +49,7 @@
 #define FILTER_SCREEN       TEST_SCREEN+1
 #define PROCESSING_SCREEN   FILTER_SCREEN+1
 
+class GPS;
 
 class Oncore_Display 
 {
@@ -80,12 +81,6 @@ public:
     void main_frame(void);
 
 
-    /**
-     *
-     */
-    void ParseHomeKeys( char c);
-
-
     /* Options screen stuff */
     /*! Paint the options screen. */
     void OptionsScreen(void);
@@ -101,10 +96,11 @@ public:
     /**
      * Call this to update the display when the frame is complete. 
      */
-    void Update(const PositionStatus* pPS, const RAIM* pRAIM);
+    void Update(PositionStatus* pPS, RAIM* pRAIM, VisibleSatellites* pVS);
 
     void WriteMsgToScreen(const char *s);
-    int  checkKeys(void);
+    // Return true if time to end program. 
+    bool  checkKeys(void);
 
     /** Access the this pointer. */
     static Oncore_Display* GetThis(void) {return fOncore_Display;};
@@ -116,8 +112,7 @@ private:
     void display_message (const char *fmt, ...);
 
     /* Position screen stuff. */
-    void display_position(double lat, double lon, double alt, 
-			  double speed, double heading);
+    void display_position(const PositionStatus* pPS);
 
     void display_details(int mode, int NSV, double dop, double Tdop, int status);
     void display_time(time_t gpstime, double delta);

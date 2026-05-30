@@ -512,7 +512,7 @@ int PositionStatus::Update(Buffered *buf)
     // PC time is recorded in the buffer time
 //    clock_gettime( CLOCK_REALTIME, &fPCTime);
 
-    fPCTime = buf->GetTime();   // time of first character. 
+    fPCTime = buf->GetTime();           // time of first character. 
 
     gpsnow.tm_mon  = buf->GetChar()-1;  // this structure uses {0:11}
     gpsnow.tm_mday = buf->GetChar();

@@ -273,7 +273,7 @@ void Oncore_Display::main_frame(void)
  *
  *******************************************************************
  */
-void Oncore_Display::Update(const PositionStatus* pPS, const RAIM* pRaim )
+void Oncore_Display::Update(PositionStatus* pPS, RAIM* pRAIM, VisibleSatellites* pVS)
 {
     SET_DEBUG_STACK;
 
@@ -284,9 +284,8 @@ void Oncore_Display::Update(const PositionStatus* pPS, const RAIM* pRaim )
 	break;
     case POSITION_SCREEN:
 
-	display_position(pPS->Latitude(), pPS->Longitude(), 
-			 pPS->Altitude(), pPS->Velocity(), pPS->Heading());
-	display_details(0, pPS->NSAT(), pPS->DOP(), pPS->TDOP(), 0);
+	display_position(pPS);
+	display_details(pVS,  pPS->DOP(), pPS->TDOP());
 	display_time(pPS->Time().tv_sec, pPS->GetDelta());
 	break;
     }
@@ -321,7 +320,6 @@ void Oncore_Display::display_time(time_t gpstime, double delta)
     int col = LEFT_AREA;
     char timestr[128], tmp[32];
 
-    CLogger::GetThis()->LogTime("display_time %ld\n", gpstime);
     strftime( timestr, sizeof(timestr), "%F %H:%M:%S ", 
 	      localtime(&gpstime));
     sprintf(tmp, " %g", delta);
@@ -404,7 +402,7 @@ void Oncore_Display::display_details(int mode, int NSV, double dop, double Tdop,
  * Function Name : display_position
  *
  * Description :
- *      Display all the GGA data
+ *     
  *
  * Inputs : 
  *
@@ -419,8 +417,7 @@ void Oncore_Display::display_details(int mode, int NSV, double dop, double Tdop,
  *
  *******************************************************************
  */
-void Oncore_Display::display_position(double lat, double lon, double alt,
-				      double speed, double heading)
+void Oncore_Display::display_position(const PositionStatus* pPS)
 {
     SET_DEBUG_STACK;
     int row, col;
@@ -430,23 +427,23 @@ void Oncore_Display::display_position(double lat, double lon, double alt,
     col = LEFT_AREA;
     
     wmove  (fVin, row, col);
-    wprintw(fVin, "%s", str_lat(lat*DegToRad, tmpstr));
+    wprintw(fVin, "%s", str_lat(pPS->Latitude()*DegToRad, tmpstr));
     row++;
     
     wmove  (fVin, row, col);
-    wprintw(fVin, "%s", str_lon(lon*DegToRad, tmpstr));
+    wprintw(fVin, "%s", str_lon(pPS->Longitude()*DegToRad, tmpstr));
     row++;
     
     wmove  (fVin, row, col);
-    wprintw(fVin, "%6.2f", alt);
+    wprintw(fVin, "%6.2f", pPS->Altitude());
     row++;
 
     wmove  (fVin, row, col);
-    wprintw(fVin, "%6.2f", speed);
+    wprintw(fVin, "%6.2f", pPS->Velocity());
     row++;
 
     wmove  (fVin, row, col);
-    wprintw(fVin, "%6.2f", heading);
+    wprintw(fVin, "%6.2f", pPS->Heading());
 
     /* set background color */
     wbkgd(fVin, COLOR_PAIR(1));
@@ -621,48 +618,6 @@ void Oncore_Display::DisplayCommandChar(unsigned char c)
 /**
  ******************************************************************
  *
- * Function Name : ParseHomeKeys
- *
- * Description : Parse input keys pertaining to home page. 
- *
- * Inputs : character
- *
- * Returns : none
- *
- * Error Conditions :
- * 
- * Unit Tested on: 
- *
- * Unit Tested by: CBL
- *
- *
- *******************************************************************
- */
-void Oncore_Display::ParseHomeKeys( char c)
-{
-    SET_DEBUG_STACK;
-    switch(c)
-    {
-    case 'f':
-    case 'F':
-	display_message("File number advance.\n");
-	break;
-    case 'o':
-    case 'O':
-    case 'p':
-    case 'P':
-    case 't':
-    case 'T':
-	display_message("Option not available.\n");
-	break;
-    default:
-	break;
-    }
-    SET_DEBUG_STACK;
-}
-/**
- ******************************************************************
- *
  * Function Name : checkKeys
  *
  * Description : default screen is position status data. 
@@ -680,10 +635,10 @@ void Oncore_Display::ParseHomeKeys( char c)
  *
  *******************************************************************
  */
-int Oncore_Display::checkKeys(void)
+bool Oncore_Display::checkKeys(void)
 {
     SET_DEBUG_STACK;
-    int rc = 0;
+    bool rc = false;
 
     /* get a character from the window. */
     char c = wgetch(fVin);
@@ -716,7 +671,7 @@ int Oncore_Display::checkKeys(void)
 	case 'q':
 	case 'Q':
 	    /* QUIT */
-	    rc = 1;
+	    rc = true;
 	    break;
 	case 'r':
 	case 'R':
@@ -724,12 +679,6 @@ int Oncore_Display::checkKeys(void)
 	    main_frame();
 	    break;
 	default:
-	    switch(fCurrentScreen) 
-	    {
-	    default:
-		ParseHomeKeys(c);
-		break;
-	    }
 	    break;
 	}
     }
@@ -784,7 +733,7 @@ void* DisplayThread(void *arg)
 	{
 	    nanosleep( &sleeptime, NULL);
 	    SET_DEBUG_STACK;
-	    pDisp->WriteMsgToScreen("UPDATE\0");
+	    //pDisp->WriteMsgToScreen("UPDATE\0");
 	}
     }
     CLogger::GetThis()->LogTime("Display thread stops.\n");

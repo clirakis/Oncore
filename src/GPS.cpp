@@ -436,15 +436,17 @@ bool GPS::ReadByByte(void)
 void GPS::LogData(void)
 {
     SET_DEBUG_STACK;
-    CLogger*        plogger = CLogger::GetThis();
-    Oncore_Display* pDisp   = Oncore_Display::GetThis();
+    CLogger*           plogger = CLogger::GetThis();
+    Oncore_Display*    pDisp   = Oncore_Display::GetThis();
+    PositionStatus*    pPS   = GetPS();
+    RAIM*              pRAIM = GetRAIM();
+    VisibleSatellites* pVS   = GetVS();
+    //
     unsigned char*  command;
     time_t          epoch;
     double          SDay;
     uint32_t        Day;
     struct tm       *tm_val;
-    PositionStatus  *pPS = GetPS();
-    const RAIM*     raim = GetRAIM();
     unsigned char   *data;
     int             n,m;
     struct timespec tstime;
@@ -454,11 +456,11 @@ void GPS::LogData(void)
     Point           XY;
 
     // Startup, send RAIM setup message.
-    GetRAIM()->MessageRate(15); // every 15 seconds
-    GetRAIM()->RAIMOnOff(1);    // Turn it on.
-    GetRAIM()->PPSMode(1);      // Continious
-    GetRAIM()->Alarm(20);
-    data = GetRAIM()->Message(false);
+    pRAIM->MessageRate(15); // every 15 seconds
+    pRAIM->RAIMOnOff(1);    // Turn it on.
+    pRAIM->PPSMode(1);      // Continious
+    pRAIM->Alarm(20);
+    data = pRAIM->Message(false);
     command = MakeCommand("En", data, 15);
     n = CommandSize();
     m = fSerial->Write(command, n);
@@ -560,7 +562,7 @@ void GPS::LogData(void)
 		    f5Logger->FillInternalVector(pPS->TDOP(), 6);
 		    f5Logger->FillInternalVector(pPS->Velocity(), 7);
 		    f5Logger->FillInternalVector(pPS->Heading(), 8);
-		    f5Logger->FillInternalVector(raim->TimeSolution(), 9);
+		    f5Logger->FillInternalVector(pRAIM->TimeSolution(), 9);
 		    f5Logger->FillInternalVector(pPS->GetDelta(),10);
 		    f5Logger->FillInternalVector(SDay,11);
 		    f5Logger->FillInternalVector(Day, 12);
@@ -598,7 +600,7 @@ void GPS::LogData(void)
 		if(pDisp)
 		{
 		    // A display is available. 
-		    pDisp->Update(pPS, raim);
+		    pDisp->Update(pPS, pRAIM, pVS);
 		}
 	    }
 	}
