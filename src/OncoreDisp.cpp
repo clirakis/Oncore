@@ -647,11 +647,11 @@ bool Oncore_Display::checkKeys(void)
 
     /* get a character from the window. */
     //char c = wgetch(fVin);
-    char c = getch();
+    int c = getch();
 
-    if (c != '\0')
+    if (((char)c) != '\0')
     {
-	CLogger::GetThis()->LogTime("check keys %c\n", c);
+	CLogger::GetThis()->LogTime("check keys %X\n", c);
 	switch (c)
 	{
 	case 0:
