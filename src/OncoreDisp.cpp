@@ -285,8 +285,8 @@ void Oncore_Display::Update(PositionStatus* pPS, RAIM* pRAIM, VisibleSatellites*
     case POSITION_SCREEN:
 
 	display_position(pPS);
-	display_details(pVS,  pPS->DOP(), pPS->TDOP());
-	display_time(pPS->Time().tv_sec, pPS->GetDelta());
+	//display_details(pVS,  pPS->DOP(), pPS->TDOP());
+	//display_time(pPS->Time().tv_sec, pPS->GetDelta());
 	break;
     }
 
