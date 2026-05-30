@@ -640,7 +640,7 @@ bool Oncore_Display::checkKeys(void)
     bool rc = false;
 
     /* get a character from the window. */
-    char c = 0; //wgetch(fVin);
+    char c = wgetch(fVin);
 
     if (c != '\0')
     {
