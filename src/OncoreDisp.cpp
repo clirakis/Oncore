@@ -15,7 +15,7 @@
  * Classification : Unclassified
  *
  * References :
- *
+ *  https://linux.die.net/man/3/wgetch
  *
  ********************************************************************/
 // System Includes
@@ -142,6 +142,12 @@ Oncore_Display::Oncore_Display(void)
     init_pair( 1, COLOR_YELLOW, COLOR_BLUE);
     init_pair( 2, COLOR_BLUE  , COLOR_YELLOW);
     init_pair( 3, COLOR_BLUE  , COLOR_WHITE);
+
+    /* Trying to supress garbage on the input side. */
+    cbreak();
+    noecho();
+    nonl();
+
     /* 
      * newwin arguments - 
      * Number lines
