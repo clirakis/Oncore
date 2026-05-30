@@ -320,6 +320,8 @@ void Oncore_Display::display_time(time_t gpstime, double delta)
     int row = STATUS_AREA-1;
     int col = LEFT_AREA;
     char timestr[128], tmp[32];
+
+    CLogger::GetThis()->LogTime("display_time %ld\n", gpstime);
     strftime( timestr, sizeof(timestr), "%F %H:%M:%S ", 
 	      localtime(&gpstime));
     sprintf(tmp, " %g", delta);
@@ -661,7 +663,7 @@ void Oncore_Display::ParseHomeKeys( char c)
 /**
  ******************************************************************
  *
- * Function Name : check_keys
+ * Function Name : checkKeys
  *
  * Description : default screen is position status data. 
  * Changing such that the keys are checked based on which screen is active. 
@@ -684,7 +686,7 @@ int Oncore_Display::checkKeys(void)
     int rc = 0;
 
     /* get a character from the window. */
-    int c = wgetch(fVin);
+    char c = wgetch(fVin);
 
     if (c != '\0')
     {
@@ -773,7 +775,7 @@ void* DisplayThread(void *arg)
 	rv = pDisp->checkKeys();
 	if (rv>0)
 	{
-	    pDisp->WriteMsgToScreen("QUIT");
+	    pDisp->WriteMsgToScreen("QUIT\0");
 	    pDisp->Stop();
 	    /* Command a graceful exit to the program. */
 	    GPS::GetThis()->Stop(); 
@@ -782,7 +784,7 @@ void* DisplayThread(void *arg)
 	{
 	    nanosleep( &sleeptime, NULL);
 	    SET_DEBUG_STACK;
-	    pDisp->WriteMsgToScreen("UPDATE");
+	    pDisp->WriteMsgToScreen("UPDATE\0");
 	}
     }
     CLogger::GetThis()->LogTime("Display thread stops.\n");

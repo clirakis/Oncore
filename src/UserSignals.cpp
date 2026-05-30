@@ -54,8 +54,6 @@ void Terminate (int sig)
     static int i=0;
     CLogger *logger = CLogger::GetThis();
     char msg[128], tmp[64];
-    time_t now;
-    time(&now);
  
     i++;
     if (i>1) 
