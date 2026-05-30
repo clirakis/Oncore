@@ -498,6 +498,8 @@ void GPS::LogData(void)
 //		tstime  = PCTime();
 //		pcmilli = 1.0e-9 * (double) tstime.tv_nsec + (double) tstime.tv_sec;
 		fixtime = GetPS()->Time().tv_sec;
+		// DeBUG
+		plogger->LogTime("fixtime %ld\n", fixtime);
 		milli   = GetPS()->Time().tv_nsec;
 		milli   = milli * 1.0e-9;
 

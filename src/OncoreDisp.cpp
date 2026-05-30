@@ -441,7 +441,7 @@ void Oncore_Display::display_position(double lat, double lon, double alt,
 
     wmove  (fVin, row, col);
     wprintw(fVin, "%6.2f", speed);
-    row+=5;
+    row++;
 
     wmove  (fVin, row, col);
     wprintw(fVin, "%6.2f", heading);
@@ -688,6 +688,7 @@ int Oncore_Display::checkKeys(void)
 
     if (c != '\0')
     {
+	CLogger::GetThis()->LogTime("check keys %c\n", c);
 	switch (c)
 	{
 	case 0:
@@ -759,7 +760,7 @@ void* DisplayThread(void *arg)
 {
     SET_DEBUG_STACK;
     int rv;
-    const struct timespec sleeptime = {1L, 200000000L};
+    const struct timespec sleeptime = {0L, 500000000L};
     Oncore_Display *pDisp = Oncore_Display::GetThis();
     CLogger::GetThis()->LogTime("Display thread starts.\n");
 
@@ -781,7 +782,7 @@ void* DisplayThread(void *arg)
 	{
 	    nanosleep( &sleeptime, NULL);
 	    SET_DEBUG_STACK;
-	    //pDisp->WriteMsgToScreen("UPDATE");
+	    pDisp->WriteMsgToScreen("UPDATE");
 	}
     }
     CLogger::GetThis()->LogTime("Display thread stops.\n");
