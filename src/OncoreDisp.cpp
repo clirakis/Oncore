@@ -283,7 +283,6 @@ void Oncore_Display::Update(PositionStatus* pPS, RAIM* pRAIM, VisibleSatellites*
 	return;
 	break;
     case POSITION_SCREEN:
-
 	display_position(pPS);
 	display_details(pVS,  pPS->DOP(), pPS->TDOP());
 	display_time(pPS->Time().tv_sec, pPS->GetDelta());
@@ -641,7 +640,7 @@ bool Oncore_Display::checkKeys(void)
     bool rc = false;
 
     /* get a character from the window. */
-    char c = wgetch(fVin);
+    char c = 0; //wgetch(fVin);
 
     if (c != '\0')
     {
@@ -721,8 +720,7 @@ void* DisplayThread(void *arg)
 	 * Check to see if the user has requested
 	 * special changes in the setup
 	 */
-	//rv = pDisp->checkKeys();
-	rv = false;
+	rv = pDisp->checkKeys();
 	if (rv)
 	{
 	    pDisp->WriteMsgToScreen("QUIT\0");
