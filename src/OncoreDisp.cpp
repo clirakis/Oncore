@@ -360,13 +360,14 @@ void Oncore_Display::display_details(VisibleSatellites* pVS, double dop, double 
 
 {
     SET_DEBUG_STACK;
-    char sv[40], tmp[8];
+    char sv[40], tmp[32];
     int N = pVS->Number();
 
     int row = STATUS_AREA;
     int col = RIGHT_AREA;
     int i;
-    wmove  (fVin, row, col);
+
+    //wmove  (fVin, row, col);
     //wprintw(fVin, "%d", 0);   // Mode
     row++;
 
@@ -731,7 +732,8 @@ void* DisplayThread(void *arg)
 	 * Check to see if the user has requested
 	 * special changes in the setup
 	 */
-	rv = pDisp->checkKeys();
+	//rv = pDisp->checkKeys();
+	rv = false; // Keeps picking up nonsense.
 	if (rv)
 	{
 	    pDisp->WriteMsgToScreen("QUIT\0");
