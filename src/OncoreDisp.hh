@@ -116,9 +116,9 @@ private:
     void display_message (const char *fmt, ...);
 
     /* Position screen stuff. */
-    void display_position(double lat, double lon, double alt, 
-			  double geoid, float time, uint8_t fix);
-    void display_velocity( float ctrue, float cmag, float speedN, float speedK);
+    void display_position(double lat, double lon, double alt, time_t time,
+			  double speed, double heading);
+
     void display_mode(unsigned char mode);
     void display_rp(unsigned char manual_mode, unsigned char nsvs, 
 		    unsigned char ndim, const unsigned char *sv_prn,

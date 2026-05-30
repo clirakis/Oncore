@@ -79,13 +79,13 @@ static const char *pos_strings[] = {
              "       Latitude :                Mode:         ",
              "      Longitude :                 NSV:         ",
              "        Altitude:                 PRN:         ",
-             "     Geoid. Sep.:                PDOP:         ",
-             "     Time of Fix:                HDOP:         ",
-             "           Speed:                VDOP:         ",
-             "     Course True:                TDOP:         ",
-	     "      Course Mag:              Status:         ",
-             "Frequency Offset:               Error:         ",
-             "        Fix type:                              ",
+             "     Time of Fix:                 DOP:         ",
+             "           Speed:                TDOP:         ",
+             "         Heading:              Status:         ",
+             "                                               ",
+	     "                                               ",
+             "                                               ",
+             "                                               ",
 };
 
 #define POS_STR_SIZE sizeof(pos_strings) / sizeof(pos_strings[0])
@@ -287,8 +287,8 @@ void Oncore_Display::Update(const PositionStatus* pPS, const RAIM* pRaim )
     case POSITION_SCREEN:
 
 	display_position(pPS->Latitude(), pPS->Longitude(), 
-			 pPS->Altitude(), 0.0, pPS->Time().tv_sec, 0);
-	display_velocity( pPS->Heading(), 0.0, pPS->Velocity(), 0.0);
+			 pPS->Altitude(), pPS->Time().tv_sec,
+			 pPS->Velocity(), pPS->Heading());
 	display_time(pPS->Time().tv_sec, pPS->GetDelta());
 	break;
     }
@@ -437,51 +437,6 @@ void Oncore_Display::display_mode( unsigned char mode)
     SET_DEBUG_STACK;
 }
 #endif
-/**
- ******************************************************************
- *
- * Function Name : 
- *
- * Description :
- *
- * Inputs :
- *
- * Returns :
- *
- * Error Conditions :
- * 
- * Unit Tested on: 
- *
- * Unit Tested by: CBL
- *
- *
- *******************************************************************
- */
-void Oncore_Display::display_velocity(  float ctrue, float cmag, float speedN, float speedK)
-{
-    SET_DEBUG_STACK;
-    int row, col;
-
-    row = STATUS_AREA+5;
-    col = LEFT_AREA;
-    
-    wmove  (fVin, row, col);
-    wprintw(fVin, "%6.4f", speedN);
-    row++;
-    
-    wmove  (fVin, row, col);
-    wprintw(fVin, "%5.2f", ctrue);
-    row++;
-    
-    wmove  (fVin, row, col);
-    wprintw(fVin, "%5.2f", cmag);
-    row++;
-    
-    wmove  (fVin, row, col);
-    wprintw(fVin, "%6.4f", speedK);
-    row++;
-    SET_DEBUG_STACK;
-}
 
 /**
  ******************************************************************
@@ -510,14 +465,12 @@ void Oncore_Display::display_velocity(  float ctrue, float cmag, float speedN, f
  *
  *******************************************************************
  */
-void Oncore_Display::display_position(double lat, double lon, double alt, 
-				    double geoid, 
-				    float time, uint8_t fix)
+void Oncore_Display::display_position(double lat, double lon, double alt, time_t time,
+				      double speed, double heading)
 {
-    static const char* Fix[3] = {"NONE","GPS ", "DIFF"}; // FIXME
     SET_DEBUG_STACK;
     int row, col;
-    char tmpstr[32];
+    char tmpstr[64];
 
     row = STATUS_AREA;
     col = LEFT_AREA;
@@ -534,16 +487,17 @@ void Oncore_Display::display_position(double lat, double lon, double alt,
     wprintw(fVin, "%6.2f", alt);
     row++;
 
+    strftime(tmpstr, sizeof(tmpstr), "%F %H:%M:%S", localtime(&time));
     wmove  (fVin, row, col);
-    wprintw(fVin, "%6.2f", geoid);
+    wprintw(fVin, "%s", tmpstr);
     row++;
 
     wmove  (fVin, row, col);
-    wprintw(fVin, "%6.2f", time);
+    wprintw(fVin, "%6.2f", speed);
     row+=5;
 
     wmove  (fVin, row, col);
-    wprintw(fVin, "%s", Fix[fix]);
+    wprintw(fVin, "%6.2f", heading);
 
     /* set background color */
     wbkgd(fVin, COLOR_PAIR(1));
