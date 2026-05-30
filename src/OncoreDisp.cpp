@@ -361,28 +361,30 @@ void Oncore_Display::display_details(VisibleSatellites* pVS, double dop, double 
 {
     SET_DEBUG_STACK;
     char sv[40], tmp[8];
+    int N = pVS->Number();
 
     int row = STATUS_AREA;
     int col = RIGHT_AREA;
     int i;
     wmove  (fVin, row, col);
-    wprintw(fVin, "%d", 0);   // Mode
+    //wprintw(fVin, "%d", 0);   // Mode
     row++;
 
     wmove  (fVin, row, col);
-    wprintw(fVin, "%2d", 0); // nsv
+    wprintw(fVin, "%2d", N); // nsv
     row++;
 
     /* PLACEHOLDER */
     memset(sv, 0, sizeof(sv));
-    sprintf(sv, "%2d ", 0);
-#if 0
-    for (i=1;i<nsvs;i++)
+
+    sprintf(sv, "%2d ", pVS->Data(0).ID);
+
+    for (i=1;i<N;i++)
     {
-	sprintf(tmp, "%2d ", sv_prn[i]);
+	sprintf(tmp, "%2d ", pVS->Data(i).ID);
 	strcat(sv, tmp);
     }
-#endif
+
     wmove  (fVin, row, col);
     wprintw(fVin, "%s", sv);
     row++;
@@ -395,9 +397,9 @@ void Oncore_Display::display_details(VisibleSatellites* pVS, double dop, double 
     wprintw(fVin, "%8.2f", Tdop );
     row++;
 
-    wmove  (fVin, row, col);
-    wprintw(fVin, "%d", 0);   // Status
-    row++;
+//    wmove  (fVin, row, col);
+//    wprintw(fVin, "%d", 0);   // Status
+//    row++;
 
     SET_DEBUG_STACK;
 }
@@ -653,7 +655,7 @@ bool Oncore_Display::checkKeys(void)
 
     if (((char)c) != '\0')
     {
-	CLogger::GetThis()->LogTime("check keys %X\n", c);
+	CLogger::GetThis()->LogTime("check keys %c\n", (char)c);
 	switch (c)
 	{
 	case 0:
