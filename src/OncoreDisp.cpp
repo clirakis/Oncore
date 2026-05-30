@@ -147,6 +147,7 @@ Oncore_Display::Oncore_Display(void)
     cbreak();
     noecho();
     nonl();
+    keypad(stdscr, TRUE);
 
     /* 
      * newwin arguments - 
@@ -646,8 +647,9 @@ bool Oncore_Display::checkKeys(void)
     bool rc = false;
 
     /* get a character from the window. */
-    char c = wgetch(fVin);
-    //int c = getch();
+    //char c = wgetch(fVin);
+    int c = getch();    // This does less harm to the screen
+    //int c = get_wch();
 
     if (((char)c) != '\0')
     {
