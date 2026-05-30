@@ -694,8 +694,8 @@ bool GPS::ReadConfiguration(void)
 	 */
 	const Setting &GroupGeodetic = root["Geodetic"];
 
-	GroupGeodetic.lookupValue("Latitude",  Lat);
-	GroupGeodetic.lookupValue("Longitude", Lon);
+	GroupGeodetic.lookupValue("Latitude0",  Lat);
+	GroupGeodetic.lookupValue("Longitude0", Lon);
 	// Make sure that there is no fGeoCenter
 	delete fGeoCenter;
 	delete fGeodetic;
