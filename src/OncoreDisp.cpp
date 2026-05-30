@@ -350,7 +350,7 @@ void Oncore_Display::display_time(time_t gpstime, double delta)
  *
  *******************************************************************
  */
-void Oncore_Display::display_details(int mode, int NSV, double dop, double Tdop, int status)
+void Oncore_Display::display_details(VisibleSatellites* pVS, double dop, double Tdop)
 
 {
     SET_DEBUG_STACK;
@@ -360,11 +360,11 @@ void Oncore_Display::display_details(int mode, int NSV, double dop, double Tdop,
     int col = RIGHT_AREA;
     int i;
     wmove  (fVin, row, col);
-    wprintw(fVin, "%d", mode);
+    wprintw(fVin, "%d", 0);   // Mode
     row++;
 
     wmove  (fVin, row, col);
-    wprintw(fVin, "%2d", NSV);
+    wprintw(fVin, "%2d", 0); // nsv
     row++;
 
     /* PLACEHOLDER */
@@ -390,7 +390,7 @@ void Oncore_Display::display_details(int mode, int NSV, double dop, double Tdop,
     row++;
 
     wmove  (fVin, row, col);
-    wprintw(fVin, "%d", status);
+    wprintw(fVin, "%d", 0);   // Status
     row++;
 
     SET_DEBUG_STACK;

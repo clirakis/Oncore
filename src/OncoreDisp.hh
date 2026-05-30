@@ -114,7 +114,8 @@ private:
     /* Position screen stuff. */
     void display_position(const PositionStatus* pPS);
 
-    void display_details(int mode, int NSV, double dop, double Tdop, int status);
+    void display_details(VisibleSatellites* pVS, double DOP, double TDOP);
+    // (int mode, int NSV, double dop, double Tdop, int status);
     void display_time(time_t gpstime, double delta);
     
     /* Mainpulate command area. */
